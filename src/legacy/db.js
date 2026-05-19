@@ -8,7 +8,8 @@ export const DB = {
     KEYS: {
         USER: 'rotalucro_user',
         RUNS: 'rotalucro_runs',
-        VEHICLE: 'rotalucro_vehicle',
+        VEHICLES: 'rotalucro_vehicles',
+        ACTIVE_VEHICLE: 'rotalucro_active_vehicle',
         MAINTENANCE: 'rotalucro_maintenance',
         GOALS: 'rotalucro_goals',
         SETTINGS: 'rotalucro_settings',
@@ -17,9 +18,18 @@ export const DB = {
 
     // Inicialização do Banco de Dados
     init() {
-        // Se já houver dados de rotas, não reinsere os mocks
+        // App inicia vazio no modo de uso real.
+        // Sem chamada para seedMockData() automático.
+        
+        // Garante que a estrutura base exista
+        if (!localStorage.getItem(this.KEYS.VEHICLES)) {
+            localStorage.setItem(this.KEYS.VEHICLES, JSON.stringify([]));
+        }
         if (!localStorage.getItem(this.KEYS.RUNS)) {
-            this.seedMockData();
+            localStorage.setItem(this.KEYS.RUNS, JSON.stringify([]));
+        }
+        if (!localStorage.getItem(this.KEYS.MAINTENANCE)) {
+            localStorage.setItem(this.KEYS.MAINTENANCE, JSON.stringify({}));
         }
     },
 
@@ -249,12 +259,13 @@ export const DB = {
     saveRun(run) {
         const runs = this.getRuns();
         run.id = 'r_' + Date.now();
+        run.vehicleId = localStorage.getItem(this.KEYS.ACTIVE_VEHICLE); // Vincular a rota ao carro ativo
         runs.unshift(run); // Insere no início
         localStorage.setItem(this.KEYS.RUNS, JSON.stringify(runs));
 
         // Atualiza quilometragem do veículo se a rota foi mais recente
         const vehicle = this.getVehicle();
-        if (vehicle) {
+        if (vehicle && run.vehicleId === vehicle.id) {
             // Supondo que adicionou km à rodagem
             vehicle.currentKm += parseFloat(run.kmRodados);
             this.saveVehicle(vehicle);
@@ -270,14 +281,59 @@ export const DB = {
     },
 
     // -------------------------------------------------------------
-    // CONTROLE DO VEÍCULO
+    // CONTROLE DO VEÍCULO (MÚLTIPLOS)
     // -------------------------------------------------------------
+    getVehicles() {
+        return JSON.parse(localStorage.getItem(this.KEYS.VEHICLES)) || [];
+    },
+
     getVehicle() {
-        return JSON.parse(localStorage.getItem(this.KEYS.VEHICLE)) || null;
+        const vehicles = this.getVehicles();
+        if (vehicles.length === 0) return null;
+        
+        const activeId = localStorage.getItem(this.KEYS.ACTIVE_VEHICLE);
+        if (activeId) {
+            const found = vehicles.find(v => v.id === activeId);
+            if (found) return found;
+        }
+        
+        // Se não tem ativo definido, pega o primeiro
+        return vehicles[0];
+    },
+
+    setActiveVehicle(id) {
+        localStorage.setItem(this.KEYS.ACTIVE_VEHICLE, id);
     },
 
     saveVehicle(vehicle) {
-        localStorage.setItem(this.KEYS.VEHICLE, JSON.stringify(vehicle));
+        const vehicles = this.getVehicles();
+        const existingIdx = vehicles.findIndex(v => v.id === vehicle.id);
+        
+        if (!vehicle.fixedCosts.garage) vehicle.fixedCosts.garage = 0.00;
+        if (!vehicle.fixedCosts.maintenanceAvg) vehicle.fixedCosts.maintenanceAvg = 0.00;
+        if (!vehicle.fixedCosts.internet) vehicle.fixedCosts.internet = 0.00;
+        if (!vehicle.fixedCosts.others) vehicle.fixedCosts.others = 0.00;
+        
+        if (existingIdx !== -1) {
+            vehicles[existingIdx] = vehicle;
+        } else {
+            vehicles.push(vehicle);
+            if (vehicles.length === 1) {
+                this.setActiveVehicle(vehicle.id);
+            }
+        }
+        localStorage.setItem(this.KEYS.VEHICLES, JSON.stringify(vehicles));
+    },
+
+    deleteVehicle(id) {
+        let vehicles = this.getVehicles();
+        vehicles = vehicles.filter(v => v.id !== id);
+        localStorage.setItem(this.KEYS.VEHICLES, JSON.stringify(vehicles));
+        if (vehicles.length > 0) {
+            this.setActiveVehicle(vehicles[0].id);
+        } else {
+            localStorage.removeItem(this.KEYS.ACTIVE_VEHICLE);
+        }
     },
 
     // -------------------------------------------------------------
@@ -359,6 +415,43 @@ export const DB = {
         setTimeout(() => {
             callback({ success: true, timestamp: Date.now() });
         }, 1800);
+    },
+
+    // -------------------------------------------------------------
+    // RESET TOTAL DOS DADOS
+    // -------------------------------------------------------------
+    resetAllData(exportFirst = false) {
+        if (exportFirst) {
+            this.exportBackupData();
+        }
+        
+        // Limpar LocalStorage (apenas as chaves do app)
+        Object.values(this.KEYS).forEach(key => {
+            localStorage.removeItem(key);
+        });
+        
+        // Limpar possíveis dados residuais (IndexedDB e Cache) caso existam no futuro
+        // window.location.reload() será chamado pela interface
+    },
+
+    exportBackupData() {
+        const allData = {};
+        Object.keys(this.KEYS).forEach(k => {
+            const key = this.KEYS[k];
+            allData[key] = JSON.parse(localStorage.getItem(key) || 'null');
+        });
+        
+        const dataStr = JSON.stringify(allData, null, 2);
+        const blob = new Blob([dataStr], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `rotalucro_backup_${new Date().toISOString().split('T')[0]}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
     }
 };
 

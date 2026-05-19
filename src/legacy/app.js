@@ -146,6 +146,12 @@ export const App = {
             } else {
                 // Vai direto pro aplicativo
                 mainApp.classList.add('active');
+                
+                // Se não tiver veículo configurado, força Primeira Configuração
+                if (!DB.getVehicle()) {
+                    this.openModal('modal-first-setup');
+                }
+                
                 this.refreshUI();
             }
         }, 1500);
@@ -231,6 +237,145 @@ export const App = {
             syncAndEnter('Carlos Silva (Offline)', 'offline@rotalucro.com');
         });
 
+        // --- MÚLTIPLOS VEÍCULOS (HEADER SELECT) ---
+        const activeSelect = document.getElementById('active-vehicle-select');
+        if (activeSelect) {
+            activeSelect.addEventListener('change', (e) => {
+                const val = e.target.value;
+                if (val === 'add-new') {
+                    // Reseta formulário de adicionar veículo
+                    document.getElementById('form-manage-vehicle').reset();
+                    document.getElementById('manage-car-id').value = '';
+                    document.getElementById('manage-vehicles-title').textContent = 'Cadastrar Novo Veículo';
+                    document.getElementById('btn-delete-manage-vehicle').style.display = 'none';
+                    this.openModal('modal-manage-vehicles');
+                    // Retorna para o carro ativo anterior no select visualmente até criar
+                    this.updateHeaderVehicleSelect();
+                } else if (val === 'edit-active') {
+                    // Editar carro ativo
+                    const v = this.state.vehicle;
+                    if (v) {
+                        document.getElementById('manage-car-id').value = v.id;
+                        document.getElementById('manage-car-nickname').value = v.nickname || '';
+                        document.getElementById('manage-car-brand').value = v.brand || '';
+                        document.getElementById('manage-car-model').value = v.model || '';
+                        document.getElementById('manage-car-version').value = v.version || '';
+                        document.getElementById('manage-car-year').value = v.year || '';
+                        document.getElementById('manage-car-plate').value = v.plate || '';
+                        document.getElementById('manage-car-km').value = v.currentKm || 0;
+                        document.getElementById('manage-car-fuel').value = v.fuelType || 'Etanol';
+                        document.getElementById('manage-car-city').value = v.cityConsumption || '';
+                        document.getElementById('manage-car-highway').value = v.highwayConsumption || '';
+                        document.getElementById('manage-vehicles-title').textContent = 'Editar Veículo';
+                        document.getElementById('btn-delete-manage-vehicle').style.display = 'block';
+                        this.openModal('modal-manage-vehicles');
+                    }
+                    this.updateHeaderVehicleSelect();
+                } else {
+                    // Trocou de carro
+                    DB.setActiveVehicle(val);
+                    this.refreshUI();
+                }
+            });
+        }
+
+        // --- SALVAR PRIMEIRO VEÍCULO (FIRST SETUP) ---
+        const firstSetupForm = document.getElementById('form-first-setup');
+        if (firstSetupForm) {
+            firstSetupForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                
+                const vehicle = {
+                    id: 'car_' + Date.now(),
+                    nickname: document.getElementById('setup-car-nickname').value,
+                    brand: document.getElementById('setup-car-brand').value,
+                    model: document.getElementById('setup-car-model').value,
+                    version: document.getElementById('setup-car-version').value,
+                    year: document.getElementById('setup-car-year').value,
+                    plate: document.getElementById('setup-car-plate').value,
+                    currentKm: parseInt(document.getElementById('setup-car-km').value) || 0,
+                    fuelType: document.getElementById('setup-car-fuel').value,
+                    cityConsumption: parseFloat(document.getElementById('setup-car-city').value) || 0,
+                    highwayConsumption: parseFloat(document.getElementById('setup-car-highway').value) || 0,
+                    fixedCosts: {
+                        loan: parseFloat(document.getElementById('setup-cost-loan').value) || 0,
+                        insurance: parseFloat(document.getElementById('setup-cost-insurance').value) || 0,
+                        ipva: parseFloat(document.getElementById('setup-cost-ipva').value) || 0,
+                        garage: parseFloat(document.getElementById('setup-cost-garage').value) || 0,
+                        maintenanceAvg: parseFloat(document.getElementById('setup-cost-maint').value) || 0,
+                        internet: parseFloat(document.getElementById('setup-cost-internet').value) || 0,
+                        others: parseFloat(document.getElementById('setup-cost-others').value) || 0
+                    }
+                };
+                
+                DB.saveVehicle(vehicle);
+                this.closeModal('modal-first-setup');
+                this.refreshUI();
+            });
+        }
+
+        // --- SALVAR / EDITAR VEÍCULOS (MANAGE) ---
+        const manageForm = document.getElementById('form-manage-vehicle');
+        if (manageForm) {
+            manageForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const id = document.getElementById('manage-car-id').value || 'car_' + Date.now();
+                // Preserva custos fixos se estiver editando, ou cria default se novo
+                const existing = DB.getVehicles().find(v => v.id === id);
+                
+                const vehicle = {
+                    id: id,
+                    nickname: document.getElementById('manage-car-nickname').value,
+                    brand: document.getElementById('manage-car-brand').value,
+                    model: document.getElementById('manage-car-model').value,
+                    version: document.getElementById('manage-car-version').value,
+                    year: document.getElementById('manage-car-year').value,
+                    plate: document.getElementById('manage-car-plate').value,
+                    currentKm: parseInt(document.getElementById('manage-car-km').value) || 0,
+                    fuelType: document.getElementById('manage-car-fuel').value,
+                    cityConsumption: parseFloat(document.getElementById('manage-car-city').value) || 0,
+                    highwayConsumption: parseFloat(document.getElementById('manage-car-highway').value) || 0,
+                    fixedCosts: existing ? existing.fixedCosts : {
+                        loan: 0, insurance: 0, ipva: 0, garage: 0, maintenanceAvg: 0, internet: 0, others: 0
+                    }
+                };
+                
+                DB.saveVehicle(vehicle);
+                this.closeModal('modal-manage-vehicles');
+                this.refreshUI();
+            });
+        }
+        
+        document.getElementById('btn-close-manage-vehicles-modal')?.addEventListener('click', () => this.closeModal('modal-manage-vehicles'));
+        
+        document.getElementById('btn-delete-manage-vehicle')?.addEventListener('click', () => {
+            if (confirm('Tem certeza que deseja excluir este veículo?')) {
+                const id = document.getElementById('manage-car-id').value;
+                DB.deleteVehicle(id);
+                this.closeModal('modal-manage-vehicles');
+                this.refreshUI();
+            }
+        });
+
+        // --- CONFIGURAÇÕES & RESET (CLICK NO AVATAR) ---
+        document.getElementById('user-avatar-img')?.addEventListener('click', () => {
+            this.openModal('modal-settings');
+        });
+        document.getElementById('btn-close-settings-modal')?.addEventListener('click', () => this.closeModal('modal-settings'));
+        
+        document.getElementById('btn-export-backup')?.addEventListener('click', () => {
+            DB.exportBackupData();
+        });
+        
+        document.getElementById('btn-reset-app')?.addEventListener('click', () => {
+            if (confirm('ATENÇÃO: Todos os dados serão apagados permanentemente!\n\nDeseja baixar um backup primeiro? Clique "Cancelar" para sair ou "OK" para prosseguir com a exclusão.')) {
+                if (confirm('Tem certeza absoluta? Esta ação não pode ser desfeita.')) {
+                    DB.resetAllData(true); // exporta backup antes de apagar e reinicia
+                    window.location.reload();
+                }
+            }
+        });
+
         // --- CÁLCULO EM TEMPO REAL NO CADASTRO DE ROTAS ---
         const routeInputs = [
             'route-earning', 'route-packages', 'route-km', 
@@ -257,6 +402,19 @@ export const App = {
             else if (fuelType === 'Diesel') priceField.value = '5.90';
             else if (fuelType === 'GNV') priceField.value = '4.69';
             this.calculateLiveRouteEstimation();
+        });
+
+        // --- MÁSCARAS DE INPUT ---
+        const plateInputs = document.querySelectorAll('.mask-plate');
+        plateInputs.forEach(input => {
+            input.addEventListener('input', (e) => {
+                let val = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+                if (val.length > 7) val = val.slice(0, 7);
+                if (val.length > 3) {
+                    val = val.slice(0, 3) + '-' + val.slice(3);
+                }
+                e.target.value = val;
+            });
         });
 
         // --- SALVAR NOVA ROTA ---
@@ -402,6 +560,37 @@ export const App = {
     // -------------------------------------------------------------
     // ATUALIZAÇÃO DA INTERFACE DO APLICATIVO
     // -------------------------------------------------------------
+    updateHeaderVehicleSelect() {
+        const select = document.getElementById('active-vehicle-select');
+        if (!select) return;
+        
+        const vehicles = DB.getVehicles();
+        const active = DB.getVehicle();
+        
+        select.innerHTML = '';
+        vehicles.forEach(v => {
+            const opt = document.createElement('option');
+            opt.value = v.id;
+            opt.textContent = `${v.model} (${v.plate || v.year})`;
+            if (active && active.id === v.id) {
+                opt.selected = true;
+            }
+            select.appendChild(opt);
+        });
+        
+        if (active) {
+            const editOpt = document.createElement('option');
+            editOpt.value = 'edit-active';
+            editOpt.textContent = '✎ Editar Veículo Ativo';
+            select.appendChild(editOpt);
+        }
+        
+        const addOpt = document.createElement('option');
+        addOpt.value = 'add-new';
+        addOpt.textContent = '+ Cadastrar Novo Carro';
+        select.appendChild(addOpt);
+    },
+
     refreshUI() {
         this.loadData();
         
@@ -409,6 +598,8 @@ export const App = {
         if (this.state.user) {
             document.getElementById('header-username').textContent = this.state.user.name;
         }
+        
+        this.updateHeaderVehicleSelect();
 
         // Calcula alertas ativos para atualizar sino de notificações
         this.calculateAlerts();
@@ -737,17 +928,29 @@ export const App = {
         if (!vehicle || !maint) return;
 
         // Atualiza cabeçalho do carro
-        document.getElementById('car-card-model').textContent = vehicle.model;
-        document.getElementById('car-card-plate').textContent = vehicle.plate;
-        document.getElementById('car-card-year').textContent = vehicle.year;
-        document.getElementById('car-card-km').textContent = `${vehicle.currentKm.toLocaleString()} km`;
+        const nicknameEl = document.getElementById('car-card-nickname');
+        if (nicknameEl) nicknameEl.textContent = vehicle.nickname || vehicle.model;
+        document.getElementById('car-card-model').textContent = `${vehicle.brand || ''} ${vehicle.model || ''} ${vehicle.version || ''}`.trim() || 'Veículo não identificado';
+        document.getElementById('car-card-plate').textContent = vehicle.plate || 'S/ Placa';
+        document.getElementById('car-card-year').textContent = vehicle.year || '----';
+        document.getElementById('car-card-km').textContent = `${(vehicle.currentKm || 0).toLocaleString()} km`;
 
         // Preenche campos de custos fixos
-        document.getElementById('car-fixed-loan').value = vehicle.fixedCosts.loan;
-        document.getElementById('car-fixed-insurance').value = vehicle.fixedCosts.insurance;
-        document.getElementById('car-fixed-ipva').value = vehicle.fixedCosts.ipva;
+        document.getElementById('car-fixed-loan').value = vehicle.fixedCosts.loan || 0;
+        document.getElementById('car-fixed-insurance').value = vehicle.fixedCosts.insurance || 0;
+        document.getElementById('car-fixed-ipva').value = vehicle.fixedCosts.ipva || 0;
+        document.getElementById('car-fixed-garage').value = vehicle.fixedCosts.garage || 0;
+        if (document.getElementById('car-fixed-maint')) document.getElementById('car-fixed-maint').value = vehicle.fixedCosts.maintenanceAvg || 0;
+        if (document.getElementById('car-fixed-internet')) document.getElementById('car-fixed-internet').value = vehicle.fixedCosts.internet || 0;
+        if (document.getElementById('car-fixed-others')) document.getElementById('car-fixed-others').value = vehicle.fixedCosts.others || 0;
 
-        const totalFixed = parseFloat(vehicle.fixedCosts.loan) + parseFloat(vehicle.fixedCosts.insurance) + parseFloat(vehicle.fixedCosts.ipva);
+        const totalFixed = parseFloat(vehicle.fixedCosts.loan || 0) + 
+                           parseFloat(vehicle.fixedCosts.insurance || 0) + 
+                           parseFloat(vehicle.fixedCosts.ipva || 0) + 
+                           parseFloat(vehicle.fixedCosts.garage || 0) +
+                           parseFloat(vehicle.fixedCosts.maintenanceAvg || 0) +
+                           parseFloat(vehicle.fixedCosts.internet || 0) +
+                           parseFloat(vehicle.fixedCosts.others || 0);
         document.getElementById('car-fixed-total-label').textContent = `${this.formatCurrency(totalFixed)} /mês`;
 
         // --- MANUTENÇÃO PREDITIVA ---
@@ -843,10 +1046,18 @@ export const App = {
         const loan = parseFloat(document.getElementById('car-fixed-loan').value) || 0;
         const ins = parseFloat(document.getElementById('car-fixed-insurance').value) || 0;
         const ipva = parseFloat(document.getElementById('car-fixed-ipva').value) || 0;
+        const garage = parseFloat(document.getElementById('car-fixed-garage').value) || 0;
+        const maint = document.getElementById('car-fixed-maint') ? parseFloat(document.getElementById('car-fixed-maint').value) || 0 : 0;
+        const internet = document.getElementById('car-fixed-internet') ? parseFloat(document.getElementById('car-fixed-internet').value) || 0 : 0;
+        const others = document.getElementById('car-fixed-others') ? parseFloat(document.getElementById('car-fixed-others').value) || 0 : 0;
 
         this.state.vehicle.fixedCosts.loan = loan;
         this.state.vehicle.fixedCosts.insurance = ins;
         this.state.vehicle.fixedCosts.ipva = ipva;
+        this.state.vehicle.fixedCosts.garage = garage;
+        this.state.vehicle.fixedCosts.maintenanceAvg = maint;
+        this.state.vehicle.fixedCosts.internet = internet;
+        this.state.vehicle.fixedCosts.others = others;
 
         this.saveState();
         alert('Custos fixos mensais atualizados!');
@@ -922,7 +1133,10 @@ export const App = {
         document.getElementById('stat-worst-profit-date').textContent = `${formatDate(worstRun.date)} - ${worstRun.platform}`;
 
         // 2. Calculadora de Sobrevivência Diária (Metas de Custo)
-        const totalFixed = parseFloat(vehicle.fixedCosts.loan) + parseFloat(vehicle.fixedCosts.insurance) + parseFloat(vehicle.fixedCosts.ipva);
+        const totalFixed = parseFloat(vehicle.fixedCosts.loan || 0) + 
+                           parseFloat(vehicle.fixedCosts.insurance || 0) + 
+                           parseFloat(vehicle.fixedCosts.ipva || 0) + 
+                           parseFloat(vehicle.fixedCosts.garage || 0);
         
         // Média de lucro por pacote
         let totalNet = 0;
