@@ -1,0 +1,24 @@
+{
+  "name": "rotalucro-vite-app",
+  "version": "1.0.0",
+  "private": true,
+  "description": "RotaLucro - app financeiro em React/Vite para motoristas de entrega.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "vite build",
+    "preview": "vite preview --host 127.0.0.1",
+    "check": "node --check src/legacy/db.js && node --check src/legacy/charts.js && node --check src/legacy/app.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "^5.0.0",
+    "vite": "^7.0.0",
+    "typescript": "^5.5.4",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "lucide-react": "^0.468.0"
+  }
+}
