@@ -51,14 +51,12 @@
 }
 
 body {
-    background-color: var(--bg-wrapper);
+    background-color: var(--bg-main);
     color: var(--text-main);
     font-family: var(--font-inter);
     min-height: 100vh;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    overflow: hidden;
+    overflow-x: hidden;
+    overflow-y: auto;
 }
 
 #root,
@@ -3330,7 +3328,90 @@ input::placeholder {
 .platform-badge-logo.maxim { background: linear-gradient(135deg, #FF6B00 0%, #e05f00 100%); color: #fff; }
 .platform-badge-logo.pap { background: linear-gradient(135deg, #64748B 0%, #475569 100%); color: #fff; }
 
-/* ================================================
-   TEXT COLOR UTILITIES
-   ================================================ */
 .text-purple { color: var(--purple) !important; }
+ 
+/* ================================================
+   NEW: GPS PULSE & MAP MARKERS
+   ================================================ */
+.gps-driver-marker {
+    position: relative;
+    width: 20px;
+    height: 20px;
+}
+.gps-pulse {
+    width: 24px;
+    height: 24px;
+    background: rgba(59, 130, 246, 0.4);
+    border-radius: 50%;
+    position: absolute;
+    left: -2px;
+    top: -2px;
+    animation: gpsGlow 2s infinite ease-out;
+    pointer-events: none;
+}
+.gps-center-dot {
+    width: 10px;
+    height: 10px;
+    background: #FFFFFF;
+    border: 2px solid var(--primary);
+    border-radius: 50%;
+    position: absolute;
+    left: 5px;
+    top: 5px;
+    box-shadow: 0 0 6px var(--primary-glow);
+}
+@keyframes gpsGlow {
+    0% { transform: scale(0.6); opacity: 0.9; }
+    100% { transform: scale(2.2); opacity: 0; }
+}
+
+/* ================================================
+   NEW: STYLES FOR STATEFUL MODALS & TABS
+   ================================================ */
+.custom-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+.custom-modal.active {
+    display: flex;
+}
+.modal-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1;
+}
+.modal-content {
+    position: relative;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    width: 100%;
+    max-width: 440px;
+    padding: 20px;
+    z-index: 2;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+    animation: slideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+@keyframes slideUp {
+    from { transform: translateY(20px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+/* Custom platform badge text styles */
+.badge-active {
+    animation: pulseBorder 2s infinite alternate;
+}
+@keyframes pulseBorder {
+    0% { border-color: rgba(59, 130, 246, 0.3); }
+    100% { border-color: rgba(59, 130, 246, 0.8); }
+}
