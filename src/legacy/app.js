@@ -15,6 +15,7 @@ export const App = {
         runs: [],
         maintenance: {},
         goals: [],
+        rides: [],
         alerts: []
     },
 
@@ -115,6 +116,7 @@ export const App = {
         this.state.vehicle = DB.getVehicle();
         this.state.maintenance = DB.getMaintenance();
         this.state.goals = DB.getGoals();
+        this.state.rides = DB.getRides();
         this.state.user = DB.getUser();
     },
 
@@ -506,11 +508,24 @@ export const App = {
             this.refreshUI();
         });
 
-        // --- CALCULADORA ETANOL X GASOLINA ---
-        const calcPriceInputs = ['sim-price-etanol', 'sim-price-gasolina'];
-        calcPriceInputs.forEach(id => {
-            document.getElementById(id).addEventListener('input', () => this.calculateFuelSimulation());
+        // --- RIDE FORM EVENTS ---
+        const rideInputs = ['ride-earning','ride-hours','ride-km','ride-fuel','ride-tolls','ride-app-fee','ride-tips','ride-food'];
+        rideInputs.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.addEventListener('input', () => this.calculateLiveRideEstimation());
         });
+        const rideDateInput = document.getElementById('ride-date');
+        if (rideDateInput) { rideDateInput.value = new Date().toISOString().split('T')[0]; }
+        const rideForm = document.getElementById('ride-registration-form');
+        if (rideForm) rideForm.addEventListener('submit', (e) => { e.preventDefault(); this.saveRegisteredRide(); });
+
+        // --- EDIT GOAL MODAL ---
+        document.getElementById('btn-close-edit-goal-modal')?.addEventListener('click', () => this.closeModal('modal-edit-goal'));
+        document.getElementById('btn-cancel-edit-goal')?.addEventListener('click', () => this.closeModal('modal-edit-goal'));
+        document.getElementById('form-edit-goal')?.addEventListener('submit', (e) => { e.preventDefault(); this.saveEditedGoal(); });
+
+        // --- REPORT TYPE FILTER ---
+        document.getElementById('filter-type')?.addEventListener('change', () => this.renderHistoryTab());
     },
 
     // Navegação entre abas
@@ -538,8 +553,8 @@ export const App = {
                 this.renderDashboard();
             } else if (tabId === 'tab-vehicle') {
                 this.renderVehicleTab();
-            } else if (tabId === 'tab-statistics') {
-                this.renderStatisticsTab();
+            } else if (tabId === 'tab-mobility') {
+                this.renderMobilityTab();
             } else if (tabId === 'tab-goals') {
                 this.renderGoalsTab();
             } else if (tabId === 'tab-reports') {
@@ -614,47 +629,35 @@ export const App = {
         const maint = this.state.maintenance;
         const alerts = [];
 
-        if (!vehicle || !maint) return;
-
-        // 1. Troca de Óleo (Intervalo de 10.000 km)
-        const oilRemaining = (maint.oil.lastChangedKm + maint.oil.intervalKm) - vehicle.currentKm;
-        if (oilRemaining <= 0) {
-            alerts.push({
-                type: 'danger',
-                title: 'Óleo do motor VENCIDO',
-                desc: `Você ultrapassou ${Math.abs(oilRemaining)} km da quilometragem recomendada. Troque urgente!`
-            });
-        } else if (oilRemaining <= 1500) {
-            alerts.push({
-                type: 'warning',
-                title: 'Troca de Óleo Próxima',
-                desc: `Restam apenas ${oilRemaining} km para a próxima troca recomendada.`
-            });
+        if (!vehicle || !maint) {
+            this.state.alerts = alerts;
+            return;
         }
 
-        // 2. Alinhamento de Pneus
-        const tireRemaining = (maint.tires.lastChangedKm + maint.tires.intervalKm) - vehicle.currentKm;
-        if (tireRemaining <= 0) {
-            alerts.push({
-                type: 'warning',
-                title: 'Alinhamento vencido',
-                desc: `Já se passaram ${Math.abs(tireRemaining)} km do rodízio/alinhamento sugerido.`
-            });
+        if (maint.oil && maint.oil.lastChangedKm !== undefined) {
+            const oilRemaining = (maint.oil.lastChangedKm + maint.oil.intervalKm) - vehicle.currentKm;
+            if (oilRemaining <= 0) {
+                alerts.push({ type: 'danger', title: 'Óleo do motor VENCIDO', desc: `Ultrapassou ${Math.abs(oilRemaining)} km. Troque urgente!` });
+            } else if (oilRemaining <= 1500) {
+                alerts.push({ type: 'warning', title: 'Troca de Óleo Próxima', desc: `Restam ${oilRemaining} km para a próxima troca.` });
+            }
         }
 
-        // 3. Pastilhas de freio
-        const brakeRemaining = (maint.brakes.lastChangedKm + maint.brakes.intervalKm) - vehicle.currentKm;
-        if (brakeRemaining <= 0) {
-            alerts.push({
-                type: 'danger',
-                title: 'Pastilhas de freio críticas!',
-                desc: `Você ultrapassou o limite das pastilhas em ${Math.abs(brakeRemaining)} km. Risco de segurança.`
-            });
+        if (maint.tires && maint.tires.lastChangedKm !== undefined) {
+            const tireRemaining = (maint.tires.lastChangedKm + maint.tires.intervalKm) - vehicle.currentKm;
+            if (tireRemaining <= 0) {
+                alerts.push({ type: 'warning', title: 'Alinhamento vencido', desc: `Passaram ${Math.abs(tireRemaining)} km do rodízio sugerido.` });
+            }
+        }
+
+        if (maint.brakes && maint.brakes.lastChangedKm !== undefined) {
+            const brakeRemaining = (maint.brakes.lastChangedKm + maint.brakes.intervalKm) - vehicle.currentKm;
+            if (brakeRemaining <= 0) {
+                alerts.push({ type: 'danger', title: 'Pastilhas de freio críticas!', desc: `Ultrapassou em ${Math.abs(brakeRemaining)} km. Risco de segurança.` });
+            }
         }
 
         this.state.alerts = alerts;
-
-        // Atualiza badge de notificações no header
         const badge = document.getElementById('alerts-count-badge');
         if (alerts.length > 0) {
             badge.style.display = 'flex';
@@ -761,7 +764,50 @@ export const App = {
             });
         }
 
-        // --- 4. CONSELHEIRO INTELIGENTE (GERADOR DE INSIGHTS REALISTAS) ---
+        // --- 4. SOURCE BREAKDOWN (Entregas vs Corridas) ---
+        const breakdownBox = document.getElementById('source-breakdown');
+        if (breakdownBox) {
+            const rides = this.state.rides;
+            let rideGross = 0, rideNet = 0, rideHours = 0;
+            rides.forEach(r => { rideGross += parseFloat(r.grossEarning || 0); rideNet += parseFloat(r.netProfit || 0); rideHours += parseFloat(r.hoursWorked || 0); });
+            breakdownBox.innerHTML = `
+                <div class="source-card delivery-source">
+                    <i class="bx bx-package"></i>
+                    <div><span class="source-label">Entregas</span><strong class="text-emerald">${this.formatCurrency(totalNet)}</strong></div>
+                </div>
+                <div class="source-card ride-source">
+                    <i class="bx bx-car"></i>
+                    <div><span class="source-label">Corridas</span><strong class="text-blue">${this.formatCurrency(rideNet)}</strong></div>
+                </div>`;
+        }
+
+        // --- 5. RANKING DE PLATAFORMAS ---
+        const rankBox = document.getElementById('dashboard-platform-ranking');
+        if (rankBox) {
+            const allRecords = [...runs, ...this.state.rides];
+            const pStats = {};
+            allRecords.forEach(r => {
+                const p = r.platform;
+                if (!pStats[p]) pStats[p] = { totalNet: 0, count: 0, hours: 0 };
+                pStats[p].totalNet += parseFloat(r.netProfit || 0);
+                pStats[p].count++;
+                pStats[p].hours += parseFloat(r.hoursWorked || 0);
+            });
+            const ranked = Object.keys(pStats).map(p => ({ platform: p, ...pStats[p], avg: pStats[p].count > 0 ? pStats[p].totalNet / pStats[p].count : 0 })).sort((a, b) => b.totalNet - a.totalNet);
+            rankBox.innerHTML = '';
+            if (ranked.length === 0) {
+                rankBox.innerHTML = '<div class="empty-state"><p>Sem dados para ranking.</p></div>';
+            } else {
+                ranked.forEach((d, i) => {
+                    const item = document.createElement('div');
+                    item.className = 'ranking-item';
+                    item.innerHTML = `<div class="rank-pos">${i+1}</div><div class="rank-details"><h5>${d.platform}</h5><span>${this.formatCurrency(d.avg)} m\u00e9dia por registro</span></div><div class="rank-score text-emerald">${this.formatCurrency(d.totalNet)}</div>`;
+                    rankBox.appendChild(item);
+                });
+            }
+        }
+
+        // --- 6. CONSELHEIRO INTELIGENTE ---
         this.generateSmartAdvice(totalNet, totalPackages, avgPackageProfit);
     },
 
@@ -955,60 +1001,60 @@ export const App = {
 
         // --- MANUTENÇÃO PREDITIVA ---
         // 1. Óleo
-        const oilPassed = vehicle.currentKm - maint.oil.lastChangedKm;
-        const oilPct = Math.min(100, Math.max(0, (oilPassed / maint.oil.intervalKm) * 100));
-        const oilRemaining = maint.oil.intervalKm - oilPassed;
-        
-        document.getElementById('oil-progress-bar').style.width = `${oilPct}%`;
-        document.getElementById('oil-km-fraction').textContent = `${oilPassed.toLocaleString()} / ${maint.oil.intervalKm.toLocaleString()} km`;
-        
-        const oilLbl = document.getElementById('oil-remaining-km');
-        if (oilRemaining <= 0) {
-            oilLbl.textContent = 'Trocar urgente!';
-            oilLbl.className = 'maint-remaining-lbl text-red font-bold';
-            document.getElementById('oil-progress-bar').className = 'maint-fill bg-red';
-        } else {
-            oilLbl.textContent = `Restam ${oilRemaining.toLocaleString()} km`;
-            oilLbl.className = 'maint-remaining-lbl text-emerald';
-            document.getElementById('oil-progress-bar').className = 'maint-fill bg-emerald';
+        if (maint.oil && maint.oil.lastChangedKm !== undefined) {
+            const oilPassed = vehicle.currentKm - maint.oil.lastChangedKm;
+            const oilPct = Math.min(100, Math.max(0, (oilPassed / maint.oil.intervalKm) * 100));
+            const oilRemaining = maint.oil.intervalKm - oilPassed;
+            document.getElementById('oil-progress-bar').style.width = `${oilPct}%`;
+            document.getElementById('oil-km-fraction').textContent = `${oilPassed.toLocaleString()} / ${maint.oil.intervalKm.toLocaleString()} km`;
+            const oilLbl = document.getElementById('oil-remaining-km');
+            if (oilRemaining <= 0) {
+                oilLbl.textContent = 'Trocar urgente!';
+                oilLbl.className = 'maint-remaining-lbl text-red font-bold';
+                document.getElementById('oil-progress-bar').className = 'maint-fill bg-red';
+            } else {
+                oilLbl.textContent = `Restam ${oilRemaining.toLocaleString()} km`;
+                oilLbl.className = 'maint-remaining-lbl text-emerald';
+                document.getElementById('oil-progress-bar').className = 'maint-fill bg-emerald';
+            }
         }
 
         // 2. Pneus
-        const tirePassed = vehicle.currentKm - maint.tires.lastChangedKm;
-        const tirePct = Math.min(100, Math.max(0, (tirePassed / maint.tires.intervalKm) * 100));
-        const tireRemaining = maint.tires.intervalKm - tirePassed;
-        
-        document.getElementById('tire-progress-bar').style.width = `${tirePct}%`;
-        document.getElementById('tire-km-fraction').textContent = `${tirePassed.toLocaleString()} / ${maint.tires.intervalKm.toLocaleString()} km`;
-        
-        const tireLbl = document.getElementById('tire-remaining-km');
-        if (tireRemaining <= 0) {
-            tireLbl.textContent = 'Fazer Rodízio / Calibrar!';
-            tireLbl.className = 'maint-remaining-lbl text-red font-bold';
-            document.getElementById('tire-progress-bar').className = 'maint-fill bg-red';
-        } else {
-            tireLbl.textContent = `Restam ${tireRemaining.toLocaleString()} km`;
-            tireLbl.className = 'maint-remaining-lbl text-blue';
-            document.getElementById('tire-progress-bar').className = 'maint-fill bg-blue';
+        if (maint.tires && maint.tires.lastChangedKm !== undefined) {
+            const tirePassed = vehicle.currentKm - maint.tires.lastChangedKm;
+            const tirePct = Math.min(100, Math.max(0, (tirePassed / maint.tires.intervalKm) * 100));
+            const tireRemaining = maint.tires.intervalKm - tirePassed;
+            document.getElementById('tire-progress-bar').style.width = `${tirePct}%`;
+            document.getElementById('tire-km-fraction').textContent = `${tirePassed.toLocaleString()} / ${maint.tires.intervalKm.toLocaleString()} km`;
+            const tireLbl = document.getElementById('tire-remaining-km');
+            if (tireRemaining <= 0) {
+                tireLbl.textContent = 'Fazer Rodízio / Calibrar!';
+                tireLbl.className = 'maint-remaining-lbl text-red font-bold';
+                document.getElementById('tire-progress-bar').className = 'maint-fill bg-red';
+            } else {
+                tireLbl.textContent = `Restam ${tireRemaining.toLocaleString()} km`;
+                tireLbl.className = 'maint-remaining-lbl text-blue';
+                document.getElementById('tire-progress-bar').className = 'maint-fill bg-blue';
+            }
         }
 
         // 3. Freios
-        const brakePassed = vehicle.currentKm - maint.brakes.lastChangedKm;
-        const brakePct = Math.min(100, Math.max(0, (brakePassed / maint.brakes.intervalKm) * 100));
-        const brakeRemaining = maint.brakes.intervalKm - brakePassed;
-        
-        document.getElementById('brakes-progress-bar').style.width = `${brakePct}%`;
-        document.getElementById('brakes-km-fraction').textContent = `${brakePassed.toLocaleString()} / ${maint.brakes.intervalKm.toLocaleString()} km`;
-        
-        const brakeLbl = document.getElementById('brakes-remaining-km');
-        if (brakeRemaining <= 0) {
-            brakeLbl.textContent = 'Trocar pastilhas urgente!';
-            brakeLbl.className = 'maint-remaining-lbl text-red font-bold';
-            document.getElementById('brakes-progress-bar').className = 'maint-fill bg-red';
-        } else {
-            brakeLbl.textContent = `Restam ${brakeRemaining.toLocaleString()} km`;
-            brakeLbl.className = 'maint-remaining-lbl text-emerald';
-            document.getElementById('brakes-progress-bar').className = 'maint-fill bg-emerald';
+        if (maint.brakes && maint.brakes.lastChangedKm !== undefined) {
+            const brakePassed = vehicle.currentKm - maint.brakes.lastChangedKm;
+            const brakePct = Math.min(100, Math.max(0, (brakePassed / maint.brakes.intervalKm) * 100));
+            const brakeRemaining = maint.brakes.intervalKm - brakePassed;
+            document.getElementById('brakes-progress-bar').style.width = `${brakePct}%`;
+            document.getElementById('brakes-km-fraction').textContent = `${brakePassed.toLocaleString()} / ${maint.brakes.intervalKm.toLocaleString()} km`;
+            const brakeLbl = document.getElementById('brakes-remaining-km');
+            if (brakeRemaining <= 0) {
+                brakeLbl.textContent = 'Trocar pastilhas urgente!';
+                brakeLbl.className = 'maint-remaining-lbl text-red font-bold';
+                document.getElementById('brakes-progress-bar').className = 'maint-fill bg-red';
+            } else {
+                brakeLbl.textContent = `Restam ${brakeRemaining.toLocaleString()} km`;
+                brakeLbl.className = 'maint-remaining-lbl text-emerald';
+                document.getElementById('brakes-progress-bar').className = 'maint-fill bg-emerald';
+            }
         }
 
         // --- PAINEL DE ALERTAS ATIVOS ---
@@ -1104,132 +1150,95 @@ export const App = {
     },
 
     // -------------------------------------------------------------
-    // ABA 4: ESTATÍSTICAS E INTELIGÊNCIA FINANCEIRA
+    // ABA 4: MOBILIDADE (APPS DE CORRIDA)
     // -------------------------------------------------------------
-    renderStatisticsTab() {
-        const runs = this.state.runs;
-        const vehicle = this.state.vehicle;
+    calculateLiveRideEstimation() {
+        const earning = parseFloat(document.getElementById('ride-earning').value) || 0;
+        const hours = parseFloat(document.getElementById('ride-hours').value) || 0;
+        const km = parseFloat(document.getElementById('ride-km').value) || 0;
+        const fuel = parseFloat(document.getElementById('ride-fuel').value) || 0;
+        const tolls = parseFloat(document.getElementById('ride-tolls').value) || 0;
+        const appFee = parseFloat(document.getElementById('ride-app-fee').value) || 0;
+        const tips = parseFloat(document.getElementById('ride-tips').value) || 0;
+        const food = parseFloat(document.getElementById('ride-food').value) || 0;
 
-        if (runs.length === 0) return;
+        const totalCost = fuel + tolls + appFee + food;
+        const netProfit = earning + tips - totalCost;
+        const perHour = hours > 0 ? netProfit / hours : 0;
+        const perKm = km > 0 ? netProfit / km : 0;
 
-        // 1. Melhor e Pior Dia de Lucro
-        let bestRun = runs[0];
-        let worstRun = runs[0];
-
-        runs.forEach(run => {
-            if (parseFloat(run.netProfit) > parseFloat(bestRun.netProfit)) bestRun = run;
-            if (parseFloat(run.netProfit) < parseFloat(worstRun.netProfit)) worstRun = run;
-        });
-
-        const formatDate = (str) => {
-            const d = new Date(str + 'T00:00:00');
-            return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
-        };
-
-        document.getElementById('stat-best-profit').textContent = this.formatCurrency(bestRun.netProfit);
-        document.getElementById('stat-best-profit-date').textContent = `${formatDate(bestRun.date)} - ${bestRun.platform}`;
-
-        document.getElementById('stat-worst-profit').textContent = this.formatCurrency(worstRun.netProfit);
-        document.getElementById('stat-worst-profit-date').textContent = `${formatDate(worstRun.date)} - ${worstRun.platform}`;
-
-        // 2. Calculadora de Sobrevivência Diária (Metas de Custo)
-        const totalFixed = parseFloat(vehicle.fixedCosts.loan || 0) + 
-                           parseFloat(vehicle.fixedCosts.insurance || 0) + 
-                           parseFloat(vehicle.fixedCosts.ipva || 0) + 
-                           parseFloat(vehicle.fixedCosts.garage || 0);
-        
-        // Média de lucro por pacote
-        let totalNet = 0;
-        let totalPackages = 0;
-        runs.forEach(r => {
-            totalNet += parseFloat(r.netProfit);
-            totalPackages += parseInt(r.packages);
-        });
-        const avgPkgNet = totalPackages > 0 ? (totalNet / totalPackages) : 3.80; // default safe fallback
-
-        // Custo fixo diário (30 dias) + custo combustível estimado
-        const fixedCostPerDay = totalFixed / 30;
-        
-        // Faturamento líquido diário recomendado para cobrir custos e poupar (meta diária)
-        const dailyTargetNet = fixedCostPerDay + 80.00; // Custo fixo + meta de R$ 80 limpo por dia mínimo
-        const packagesNeeded = Math.ceil(dailyTargetNet / avgPkgNet);
-
-        document.getElementById('calc-packages-target').textContent = packagesNeeded;
-        document.getElementById('calc-avg-pkg-val').textContent = this.formatCurrency(avgPkgNet);
-        document.getElementById('calc-fixed-costs-val').textContent = this.formatCurrency(totalFixed);
-        document.getElementById('calc-daily-revenue-target').textContent = this.formatCurrency(dailyTargetNet);
-
-        // 3. Ranking de Rentabilidade de Plataformas
-        const rankList = document.getElementById('platform-ranking-list');
-        rankList.innerHTML = '';
-
-        // Agrupa por plataforma
-        const platformStats = {};
-        runs.forEach(run => {
-            const plat = run.platform;
-            if (!platformStats[plat]) {
-                platformStats[plat] = { totalNet: 0, totalPkgs: 0, count: 0 };
-            }
-            platformStats[plat].totalNet += parseFloat(run.netProfit);
-            platformStats[plat].totalPkgs += parseInt(run.packages);
-            platformStats[plat].count++;
-        });
-
-        // Converte e ordena
-        const rankData = Object.keys(platformStats).map(plat => {
-            const stats = platformStats[plat];
-            return {
-                platform: plat,
-                totalNet: stats.totalNet,
-                avgPkg: stats.totalPkgs > 0 ? (stats.totalNet / stats.totalPkgs) : 0
-            };
-        }).sort((a, b) => b.avgPkg - a.avgPkg); // ordena pelo melhor lucro por pacote
-
-        rankData.forEach((data, idx) => {
-            const item = document.createElement('div');
-            item.className = 'ranking-item';
-            item.innerHTML = `
-                <div class="rank-pos">${idx + 1}</div>
-                <div class="rank-details">
-                    <h5>${data.platform}</h5>
-                    <span>${this.formatCurrency(data.avgPkg)} por pacote (lucro médio)</span>
-                </div>
-                <div class="rank-score text-emerald">
-                    ${this.formatCurrency(data.totalNet)} total
-                </div>
-            `;
-            rankList.appendChild(item);
-        });
-
-        // 4. Executa simulação Etanol x Gasolina
-        this.calculateFuelSimulation();
+        document.getElementById('live-ride-cost').textContent = this.formatCurrency(totalCost);
+        const profitEl = document.getElementById('live-ride-profit');
+        profitEl.textContent = this.formatCurrency(netProfit);
+        profitEl.className = netProfit < 0 ? 'calc-value text-red font-bold' : 'calc-value text-emerald font-bold';
+        document.getElementById('live-ride-per-hour').textContent = this.formatCurrency(perHour);
+        document.getElementById('live-ride-per-km').textContent = this.formatCurrency(perKm);
     },
 
-    calculateFuelSimulation() {
-        const priceEtanol = parseFloat(document.getElementById('sim-price-etanol').value) || 0;
-        const priceGasolina = parseFloat(document.getElementById('sim-price-gasolina').value) || 0;
-        const box = document.getElementById('fuel-sim-result-box');
-        const title = document.getElementById('fuel-sim-recommendation');
-        const details = document.getElementById('fuel-sim-details');
+    saveRegisteredRide() {
+        const ride = {
+            date: document.getElementById('ride-date').value || new Date().toISOString().split('T')[0],
+            platform: document.getElementById('ride-platform').value,
+            grossEarning: parseFloat(document.getElementById('ride-earning').value) || 0,
+            hoursWorked: parseFloat(document.getElementById('ride-hours').value) || 0,
+            kmRodados: parseFloat(document.getElementById('ride-km').value) || 0,
+            fuelCost: parseFloat(document.getElementById('ride-fuel').value) || 0,
+            tolls: parseFloat(document.getElementById('ride-tolls').value) || 0,
+            appFee: parseFloat(document.getElementById('ride-app-fee').value) || 0,
+            tips: parseFloat(document.getElementById('ride-tips').value) || 0,
+            food: parseFloat(document.getElementById('ride-food').value) || 0,
+            notes: document.getElementById('ride-notes').value || ''
+        };
+        ride.totalExpense = ride.fuelCost + ride.tolls + ride.appFee + ride.food;
+        ride.netProfit = ride.grossEarning + ride.tips - ride.totalExpense;
+        ride.profitPerHour = ride.hoursWorked > 0 ? ride.netProfit / ride.hoursWorked : 0;
+        ride.profitPerKm = ride.kmRodados > 0 ? ride.netProfit / ride.kmRodados : 0;
 
-        if (priceEtanol === 0 || priceGasolina === 0) return;
+        DB.saveRide(ride);
+        alert('Corrida salva com sucesso!');
+        document.getElementById('ride-registration-form').reset();
+        document.getElementById('ride-date').value = new Date().toISOString().split('T')[0];
+        this.calculateLiveRideEstimation();
+        this.refreshUI();
+        this.switchTab('tab-mobility');
+    },
 
-        // Coeficiente clássico de mercado (70% a 73% dependendo do carro, pro Corsa 70% é a média exata)
-        const ratio = (priceEtanol / priceGasolina);
-        const threshold = 0.70;
+    renderMobilityTab() {
+        const rides = this.state.rides;
+        const listEl = document.getElementById('recent-rides-list');
+        if (!listEl) return;
+        listEl.innerHTML = '';
+        const recent = rides.slice(0, 5);
+        if (recent.length === 0) {
+            listEl.innerHTML = '<div class="empty-state"><i class="bx bx-car"></i><p>Nenhuma corrida registrada ainda.</p></div>';
+            return;
+        }
+        recent.forEach(ride => {
+            const d = new Date(ride.date + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+            const logo = this.getPlatformLogoClass(ride.platform);
+            const item = document.createElement('div');
+            item.className = 'route-item';
+            item.innerHTML = `
+                <div class="route-left">
+                    <div class="platform-badge-logo ${logo}">${ride.platform.charAt(0)}</div>
+                    <div class="route-details">
+                        <span class="route-platform-name">${ride.platform}</span>
+                        <span class="route-sub-meta">${d} \u2022 ${ride.hoursWorked}h \u2022 ${ride.kmRodados} km</span>
+                    </div>
+                </div>
+                <div class="route-right" style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;">
+                    <span class="route-profit-val text-emerald">+ ${this.formatCurrency(ride.netProfit)}</span>
+                    <span class="route-calc-sub">${this.formatCurrency(ride.profitPerHour)}/h</span>
+                    <button class="btn btn-xs btn-glass" onclick="App.deleteRideRecord('${ride.id}')" style="padding:2px 6px;font-size:0.6rem;border-color:rgba(239,68,68,0.2);color:var(--red);"><i class="bx bx-trash"></i></button>
+                </div>`;
+            listEl.appendChild(item);
+        });
+    },
 
-        if (ratio < threshold) {
-            title.textContent = 'Use Etanol! ⛽';
-            title.className = 'result-title text-emerald';
-            details.innerHTML = `O Etanol está custando <strong>${(ratio * 100).toFixed(1)}%</strong> do preço da Gasolina. Vale a pena abastecer com Etanol até o valor máximo de <strong>R$ ${(priceGasolina * threshold).toFixed(2)}</strong>.`;
-            box.style.borderColor = 'rgba(16, 185, 129, 0.3)';
-            box.style.background = 'rgba(16, 185, 129, 0.04)';
-        } else {
-            title.textContent = 'Use Gasolina! ⛽';
-            title.className = 'result-title text-gold';
-            details.innerHTML = `O Etanol está custando <strong>${(ratio * 100).toFixed(1)}%</strong> do preço da Gasolina (acima de 70%). Compensa abastecer com Gasolina. O Etanol só compensaria se custasse abaixo de <strong>R$ ${(priceGasolina * threshold).toFixed(2)}</strong>.`;
-            box.style.borderColor = 'rgba(245, 158, 11, 0.3)';
-            box.style.background = 'rgba(245, 158, 11, 0.04)';
+    deleteRideRecord(id) {
+        if (confirm('Excluir esta corrida?')) {
+            DB.deleteRide(id);
+            this.refreshUI();
         }
     },
 
@@ -1240,68 +1249,97 @@ export const App = {
         const goals = this.state.goals;
         const box = document.getElementById('financial-goals-container');
         box.innerHTML = '';
-
         if (goals.length === 0) {
-            box.innerHTML = `
-                <div class="empty-state">
-                    <i class="bx bx-target-lock"></i>
-                    <p>Você não tem metas criadas. Crie sua primeira meta abaixo!</p>
-                </div>`;
+            box.innerHTML = '<div class="empty-state"><i class="bx bx-target-lock"></i><p>Você não tem metas criadas. Crie sua primeira meta abaixo!</p></div>';
             return;
         }
-
+        const catIcons = { prestacao:'bx-credit-card', pneus:'bx-disc', reserva:'bx-wallet', carro:'bx-car', viagem:'bx-plane', emergencia:'bx-error', manutencao:'bx-wrench', combustivel:'bx-gas-pump', aluguel:'bx-home', investimento:'bx-trending-up', outro:'bx-target-lock' };
         goals.forEach(goal => {
-            const pct = Math.min(100, Math.round((parseFloat(goal.currentAmount) / parseFloat(goal.targetAmount)) * 100));
-            const dateObj = new Date(goal.deadline + 'T00:00:00');
-            const dateStr = dateObj.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
-
+            const pct = Math.min(100, Math.round((parseFloat(goal.currentAmount || 0) / parseFloat(goal.targetAmount)) * 100));
+            const dateStr = new Date(goal.deadline + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+            const icon = catIcons[goal.category] || 'bx-target-lock';
+            const isComplete = goal.completed || pct >= 100;
             const card = document.createElement('div');
-            card.className = 'goal-card';
+            card.className = 'goal-card' + (isComplete ? ' goal-completed' : '');
             card.innerHTML = `
-                <span class="goal-pct-badge">${pct}% concluído</span>
+                <span class="goal-pct-badge">${isComplete ? '\u2713 Conclu\u00edda' : pct + '% conclu\u00eddo'}</span>
                 <div class="goal-top">
                     <div class="goal-title-area">
-                        <h4>${goal.name}</h4>
+                        <h4><i class="bx ${icon}" style="margin-right:6px;"></i>${goal.name}</h4>
                         <span class="goal-deadline-lbl"><i class="bx bx-calendar"></i> Limite: ${dateStr}</span>
                     </div>
-                    <button class="btn-add-fund-goal" onclick="App.openDepositGoalModal('${goal.id}', '${goal.name}')">
-                        <i class="bx bx-plus"></i>
-                    </button>
+                    <button class="btn-add-fund-goal" onclick="App.openDepositGoalModal('${goal.id}', '${goal.name.replace(/'/g, '\\&#39;')}')"><i class="bx bx-plus"></i></button>
                 </div>
-                
                 <div class="goal-progress-section">
                     <div class="goal-progress-bar-bg">
                         <div class="goal-progress-bar-fill" style="width: ${pct}%;"></div>
                     </div>
                     <div class="goal-numbers">
-                        <span class="goal-current-amt">${this.formatCurrency(goal.currentAmount)}</span>
+                        <span class="goal-current-amt">${this.formatCurrency(goal.currentAmount || 0)}</span>
                         <span class="goal-target-amt">Meta: ${this.formatCurrency(goal.targetAmount)}</span>
                     </div>
                 </div>
-            `;
+                <div class="goal-actions-row">
+                    <button class="btn btn-xs btn-glass" onclick="App.editGoal('${goal.id}')"><i class="bx bx-edit-alt"></i> Editar</button>
+                    ${!isComplete ? '<button class="btn btn-xs btn-glass text-emerald" onclick="App.completeGoal(\'' + goal.id + '\')"><i class="bx bx-check"></i> Concluir</button>' : ''}
+                    <button class="btn btn-xs btn-glass text-red" onclick="App.deleteGoalRecord('${goal.id}')"><i class="bx bx-trash"></i> Excluir</button>
+                </div>`;
             box.appendChild(card);
         });
     },
 
     saveNewGoal() {
-        const name = document.getElementById('goal-name').value;
-        const target = parseFloat(document.getElementById('goal-target').value);
-        const current = parseFloat(document.getElementById('goal-current').value) || 0;
-        const deadline = document.getElementById('goal-deadline').value;
-
         const goal = {
-            name,
-            targetAmount: target,
-            currentAmount: current,
-            deadline,
-            category: 'pessoal'
+            name: document.getElementById('goal-name').value,
+            targetAmount: parseFloat(document.getElementById('goal-target').value),
+            currentAmount: parseFloat(document.getElementById('goal-current').value) || 0,
+            deadline: document.getElementById('goal-deadline').value,
+            category: document.getElementById('goal-category')?.value || 'outro'
         };
-
         DB.saveGoal(goal);
-        
         alert('Meta criada com sucesso!');
         document.getElementById('form-create-goal').reset();
         this.closeModal('modal-new-goal');
+        this.refreshUI();
+    },
+
+    editGoal(id) {
+        const goal = this.state.goals.find(g => g.id === id);
+        if (!goal) return;
+        document.getElementById('edit-goal-id').value = goal.id;
+        document.getElementById('edit-goal-name').value = goal.name;
+        document.getElementById('edit-goal-target').value = goal.targetAmount;
+        document.getElementById('edit-goal-current').value = goal.currentAmount || 0;
+        document.getElementById('edit-goal-deadline').value = goal.deadline;
+        document.getElementById('edit-goal-category').value = goal.category || 'outro';
+        this.openModal('modal-edit-goal');
+    },
+
+    saveEditedGoal() {
+        const updated = {
+            id: document.getElementById('edit-goal-id').value,
+            name: document.getElementById('edit-goal-name').value,
+            targetAmount: parseFloat(document.getElementById('edit-goal-target').value),
+            currentAmount: parseFloat(document.getElementById('edit-goal-current').value) || 0,
+            deadline: document.getElementById('edit-goal-deadline').value,
+            category: document.getElementById('edit-goal-category').value || 'outro'
+        };
+        DB.updateGoal(updated);
+        alert('Meta atualizada!');
+        this.closeModal('modal-edit-goal');
+        this.refreshUI();
+    },
+
+    deleteGoalRecord(id) {
+        if (confirm('Excluir esta meta permanentemente?')) {
+            DB.deleteGoal(id);
+            this.refreshUI();
+        }
+    },
+
+    completeGoal(id) {
+        DB.completeGoal(id);
+        alert('Meta marcada como conclu\u00edda!');
         this.refreshUI();
     },
 
@@ -1328,71 +1366,57 @@ export const App = {
     // -------------------------------------------------------------
     renderHistoryTab() {
         const runs = this.state.runs;
+        const rides = this.state.rides;
+        const filterType = document.getElementById('filter-type')?.value || 'all';
         const filterPlat = document.getElementById('filter-platform').value;
         const filterMonth = document.getElementById('filter-month').value;
-        
         const listEl = document.getElementById('reports-runs-history-list');
         listEl.innerHTML = '';
 
-        // Filtra a lista com base nas opções selecionadas
-        const filteredRuns = runs.filter(run => {
-            const matchPlat = filterPlat === 'all' || run.platform === filterPlat;
-            
-            // Extrai mês da rota (data formato yyyy-mm-dd)
-            const runMonth = run.date.split('-')[1];
-            const matchMonth = filterMonth === 'all' || runMonth === filterMonth;
+        let records = [];
+        if (filterType === 'all' || filterType === 'delivery') records = records.concat(runs.map(r => ({...r, _type:'delivery'})));
+        if (filterType === 'all' || filterType === 'ride') records = records.concat(rides.map(r => ({...r, _type:'ride'})));
+        records.sort((a,b) => new Date(b.date) - new Date(a.date));
 
+        const filtered = records.filter(r => {
+            const matchPlat = filterPlat === 'all' || r.platform === filterPlat;
+            const runMonth = r.date.split('-')[1];
+            const matchMonth = filterMonth === 'all' || runMonth === filterMonth;
             return matchPlat && matchMonth;
         });
 
-        // Calcula acumuladores do período filtrado
-        let sumGross = 0;
-        let sumExpense = 0;
-        let sumNet = 0;
-
-        filteredRuns.forEach(run => {
-            sumGross += parseFloat(run.grossEarning);
-            sumExpense += parseFloat(run.totalExpense);
-            sumNet += parseFloat(run.netProfit);
-        });
-
+        let sumGross = 0, sumExpense = 0, sumNet = 0;
+        filtered.forEach(r => { sumGross += parseFloat(r.grossEarning||0); sumExpense += parseFloat(r.totalExpense||0); sumNet += parseFloat(r.netProfit||0); });
         document.getElementById('filtered-gross').textContent = this.formatCurrency(sumGross);
         document.getElementById('filtered-expense').textContent = this.formatCurrency(sumExpense);
         document.getElementById('filtered-net').textContent = this.formatCurrency(sumNet);
 
-        if (filteredRuns.length === 0) {
-            listEl.innerHTML = `
-                <div class="empty-state">
-                    <i class="bx bx-filter-alt"></i>
-                    <p>Nenhuma rota encontrada para os filtros selecionados.</p>
-                </div>`;
+        if (filtered.length === 0) {
+            listEl.innerHTML = '<div class="empty-state"><i class="bx bx-filter-alt"></i><p>Nenhum registro encontrado.</p></div>';
             return;
         }
 
-        // Renderiza itens
-        filteredRuns.forEach(run => {
-            const dateObj = new Date(run.date + 'T00:00:00');
-            const dateStr = dateObj.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
-            const logoClass = this.getPlatformLogoClass(run.platform);
-
+        filtered.forEach(rec => {
+            const dateStr = new Date(rec.date + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+            const logo = this.getPlatformLogoClass(rec.platform);
+            const isRide = rec._type === 'ride';
+            const meta = isRide ? `${dateStr} \u2022 ${rec.hoursWorked||0}h \u2022 ${rec.kmRodados} km` : `${dateStr} \u2022 ${rec.packages} pct \u2022 ${rec.kmRodados} km`;
+            const badge = isRide ? '<span class="type-badge ride-badge">Corrida</span>' : '<span class="type-badge delivery-badge">Entrega</span>';
+            const delFn = isRide ? `App.deleteRideRecord('${rec.id}')` : `App.deleteRoute('${rec.id}')`;
             const card = document.createElement('div');
             card.className = 'route-item';
             card.innerHTML = `
                 <div class="route-left">
-                    <div class="platform-badge-logo ${logoClass}">
-                        ${run.platform.charAt(0)}
-                    </div>
+                    <div class="platform-badge-logo ${logo}">${rec.platform.charAt(0)}</div>
                     <div class="route-details">
-                        <span class="route-platform-name">${run.platform}</span>
-                        <span class="route-sub-meta">${dateStr} • ${run.packages} pacotes • ${run.kmRodados} km</span>
-                        <span class="route-sub-meta" style="color: var(--text-muted);">Ganhos: R$ ${run.grossEarning.toFixed(2)} | Combustível: R$ ${run.fuelCost.toFixed(2)}</span>
+                        <span class="route-platform-name">${rec.platform} ${badge}</span>
+                        <span class="route-sub-meta">${meta}</span>
                     </div>
                 </div>
-                <div class="route-right" style="display:flex; flex-direction:column; align-items:flex-end; gap:4px;">
-                    <span class="route-profit-val text-emerald">+ ${this.formatCurrency(run.netProfit)}</span>
-                    <button class="btn btn-xs btn-glass" onclick="App.deleteRoute('${run.id}')" style="padding: 2px 6px; font-size: 0.6rem; border-color: rgba(239, 68, 68, 0.2); color: var(--red);"><i class="bx bx-trash"></i></button>
-                </div>
-            `;
+                <div class="route-right" style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
+                    <span class="route-profit-val text-emerald">+ ${this.formatCurrency(rec.netProfit)}</span>
+                    <button class="btn btn-xs btn-glass" onclick="${delFn}" style="padding:2px 6px;font-size:0.6rem;border-color:rgba(239,68,68,0.2);color:var(--red);"><i class="bx bx-trash"></i></button>
+                </div>`;
             listEl.appendChild(card);
         });
     },
@@ -1459,7 +1483,11 @@ export const App = {
         if (plat === 'Mercado Livre') return 'ml';
         if (plat === 'Lalamove') return 'lala';
         if (plat === 'Loggi') return 'loggi';
-        if (plat === 'Uber Flash') return 'uber';
+        if (plat === 'Uber Flash' || plat === 'Uber') return 'uber';
+        if (plat === '99') return 'nn';
+        if (plat === 'InDrive') return 'indrive';
+        if (plat === 'Maxim') return 'maxim';
+        if (plat === 'Porta a Porta') return 'pap';
         return 'outra';
     }
 };

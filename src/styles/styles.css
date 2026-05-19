@@ -3237,3 +3237,100 @@ input::placeholder {
         transition-duration: 0.01ms !important;
     }
 }
+
+/* ================================================
+   NEW: MOBILIDADE TAB STYLES
+   ================================================ */
+.mobility-banner {
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.15) 0%, rgba(59, 130, 246, 0.1) 100%) !important;
+    border-left: 3px solid var(--purple) !important;
+}
+.mobility-banner h3 i { margin-right: 8px; }
+
+.ride-calc {
+    border: 1px solid rgba(139, 92, 246, 0.2) !important;
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.06) 0%, rgba(59, 130, 246, 0.03) 100%) !important;
+}
+
+/* ================================================
+   NEW: SOURCE BREAKDOWN (Dashboard)
+   ================================================ */
+.source-breakdown-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+.source-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    transition: var(--transition-smooth);
+}
+.source-card:hover { border-color: var(--border-glow); transform: translateY(-1px); }
+.source-card i { font-size: 1.5rem; }
+.source-card div { display: flex; flex-direction: column; gap: 2px; }
+.source-label { font-size: 0.7rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+.source-card strong { font-family: var(--font-outfit); font-size: 1.05rem; }
+.delivery-source { border-left: 3px solid var(--emerald); }
+.delivery-source i { color: var(--emerald); }
+.ride-source { border-left: 3px solid var(--primary); }
+.ride-source i { color: var(--primary); }
+
+/* ================================================
+   NEW: GOAL CRUD ACTIONS
+   ================================================ */
+.goal-actions-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border-color);
+}
+.goal-actions-row .btn { flex: 1; justify-content: center; }
+.goal-card.goal-completed {
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.06) 0%, var(--bg-card) 100%);
+}
+.goal-card.goal-completed .goal-pct-badge {
+    background: linear-gradient(135deg, var(--gold) 0%, #d97706 100%);
+    color: #000;
+}
+.goal-card.goal-completed .goal-progress-bar-fill {
+    background: linear-gradient(90deg, var(--gold) 0%, #d97706 100%) !important;
+}
+
+/* ================================================
+   NEW: TYPE BADGES (Reports)
+   ================================================ */
+.type-badge {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 0.6rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-left: 6px;
+    vertical-align: middle;
+}
+.delivery-badge { background: rgba(16, 185, 129, 0.15); color: var(--emerald); }
+.ride-badge { background: rgba(139, 92, 246, 0.15); color: var(--purple); }
+
+/* ================================================
+   NEW: PLATFORM BADGE COLORS
+   ================================================ */
+.platform-badge-logo.uber { background: linear-gradient(135deg, #000000 0%, #1a1a1a 100%); color: #fff; }
+.platform-badge-logo.nn { background: linear-gradient(135deg, #FFD500 0%, #e6c000 100%); color: #000; }
+.platform-badge-logo.indrive { background: linear-gradient(135deg, #2DB547 0%, #1e8c35 100%); color: #fff; }
+.platform-badge-logo.maxim { background: linear-gradient(135deg, #FF6B00 0%, #e05f00 100%); color: #fff; }
+.platform-badge-logo.pap { background: linear-gradient(135deg, #64748B 0%, #475569 100%); color: #fff; }
+
+/* ================================================
+   TEXT COLOR UTILITIES
+   ================================================ */
+.text-purple { color: var(--purple) !important; }

@@ -248,13 +248,20 @@ export const appMarkup = `<!-- Desktop Simulator Frame Wrapper -->
                                 </div>
                             </div>
 
+                            <!-- Source Breakdown -->
+                            <h3 class="section-title">Origem dos Ganhos</h3>
+                            <div class="source-breakdown-grid" id="source-breakdown"></div>
+
+                            <!-- Platform Ranking -->
+                            <h3 class="section-title">Ranking de Plataformas</h3>
+                            <div class="ranking-container" id="dashboard-platform-ranking"></div>
+
                             <!-- Recent Deliveries List -->
                             <div class="section-header-row">
                                 <h3 class="section-title">Últimas Rotas</h3>
                                 <a href="#" id="view-all-history-link" class="view-all">Ver todas</a>
                             </div>
                             <div class="recent-routes-list" id="dashboard-recent-routes">
-                                <!-- Dynamic items loaded from localStorage -->
                                 <div class="empty-state">
                                     <i class="bx bx-calendar-x"></i>
                                     <p>Nenhuma rota registrada este mês.</p>
@@ -290,6 +297,7 @@ export const appMarkup = `<!-- Desktop Simulator Frame Wrapper -->
                                                 <option value="Lalamove">Lalamove</option>
                                                 <option value="Loggi">Loggi</option>
                                                 <option value="Uber Flash">Uber Flash</option>
+                                                <option value="Porta a Porta">Porta a Porta</option>
                                                 <option value="Outra">Outra Plataforma</option>
                                             </select>
                                         </div>
@@ -573,83 +581,135 @@ export const appMarkup = `<!-- Desktop Simulator Frame Wrapper -->
                             </div>
                         </section>
 
-                        <!-- TAB 4: STATISTICS -->
-                        <section id="tab-statistics" class="tab-content">
-                            <!-- Advanced Stat Metrics Header -->
-                            <div class="stats-header-banner">
-                                <h3>Análise de Desempenho</h3>
-                                <p>Sua inteligência de negócios. Veja onde ganha mais e otimize seu dia.</p>
+                        <!-- TAB 4: MOBILIDADE (APPS DE CORRIDA) -->
+                        <section id="tab-mobility" class="tab-content">
+                            <div class="form-header-banner mobility-banner">
+                                <h3><i class="bx bx-car"></i> Apps de Corrida</h3>
+                                <p>Registre ganhos com Uber, 99, InDrive e outros apps de mobilidade.</p>
                             </div>
 
-                            <div class="stats-records-grid">
-                                <div class="record-card gold">
-                                    <span class="rec-label"><i class="bx bx-trophy"></i> Melhor Dia de Lucro</span>
-                                    <h4 id="stat-best-profit">R$ 0,00</h4>
-                                    <span class="rec-sub" id="stat-best-profit-date">Nenhum dado</span>
+                            <form id="ride-registration-form" class="custom-form">
+                                <div class="form-group">
+                                    <label for="ride-date">Data</label>
+                                    <div class="input-icon-wrapper">
+                                        <i class="bx bx-calendar"></i>
+                                        <input type="date" id="ride-date" required>
+                                    </div>
                                 </div>
-                                <div class="record-card red">
-                                    <span class="rec-label"><i class="bx bx-downvote"></i> Pior Dia de Lucro</span>
-                                    <h4 id="stat-worst-profit">R$ 0,00</h4>
-                                    <span class="rec-sub" id="stat-worst-profit-date">Nenhum dado</span>
+                                <div class="form-grid-two">
+                                    <div class="form-group">
+                                        <label for="ride-platform">Plataforma</label>
+                                        <div class="input-icon-wrapper">
+                                            <i class="bx bx-car"></i>
+                                            <select id="ride-platform" required>
+                                                <option value="Uber">Uber</option>
+                                                <option value="99">99</option>
+                                                <option value="InDrive">InDrive</option>
+                                                <option value="Maxim">Maxim</option>
+                                                <option value="Lalamove">Lalamove</option>
+                                                <option value="Outra">Outra</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="ride-earning">Valor Bruto (R$)</label>
+                                        <div class="input-icon-wrapper prefix">
+                                            <span class="currency-prefix">R$</span>
+                                            <input type="number" id="ride-earning" step="0.01" min="0" placeholder="0,00" required>
+                                        </div>
+                                    </div>
                                 </div>
-                            </div>
+                                <div class="form-grid-two">
+                                    <div class="form-group">
+                                        <label for="ride-hours">Horas Trabalhadas</label>
+                                        <div class="input-icon-wrapper">
+                                            <i class="bx bx-time-five"></i>
+                                            <input type="number" id="ride-hours" step="0.1" min="0" placeholder="Ex: 8" required>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="ride-km">KM Rodados</label>
+                                        <div class="input-icon-wrapper">
+                                            <i class="bx bx-tachometer"></i>
+                                            <input type="number" id="ride-km" step="0.1" min="0" placeholder="Ex: 120" required>
+                                        </div>
+                                    </div>
+                                </div>
 
-                            <!-- Daily Goal Target Requirement Simulator -->
-                            <h3 class="section-title">Metas de Custo Diárias</h3>
-                            <div class="daily-target-simulator-card">
-                                <h4>Quantos pacotes preciso entregar?</h4>
-                                <p class="target-card-intro">Cálculo dinâmico para cobrir os seus custos fixos e combustível diário:</p>
-                                
-                                <div class="target-value-box">
-                                    <span class="target-big-number" id="calc-packages-target">0</span>
-                                    <span class="target-big-lbl">Pacotes por Dia</span>
+                                <h4 class="form-subtitle"><i class="bx bx-wallet"></i> Custos Operacionais</h4>
+                                <div class="form-grid-three">
+                                    <div class="form-group">
+                                        <label for="ride-fuel">Combustível</label>
+                                        <div class="input-icon-wrapper">
+                                            <input type="number" id="ride-fuel" step="0.01" min="0" value="0.00">
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="ride-tolls">Pedágios</label>
+                                        <div class="input-icon-wrapper">
+                                            <input type="number" id="ride-tolls" step="0.01" min="0" value="0.00">
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="ride-app-fee">Taxa App</label>
+                                        <div class="input-icon-wrapper">
+                                            <input type="number" id="ride-app-fee" step="0.01" min="0" value="0.00">
+                                        </div>
+                                    </div>
                                 </div>
-                                
-                                <div class="target-explanation">
-                                    <p>Baseado no seu lucro médio atual por pacote (<strong id="calc-avg-pkg-val">R$ 0,00</strong>) e despesas fixas mensais de <strong id="calc-fixed-costs-val">R$ 0,00</strong>, você precisa faturar diariamente no mínimo <strong id="calc-daily-revenue-target">R$ 0,00</strong> líquidos.</p>
+                                <div class="form-grid-two">
+                                    <div class="form-group">
+                                        <label for="ride-tips">Gorjetas (R$)</label>
+                                        <div class="input-icon-wrapper prefix">
+                                            <span class="currency-prefix">R$</span>
+                                            <input type="number" id="ride-tips" step="0.01" min="0" value="0.00">
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="ride-food">Alimentação</label>
+                                        <div class="input-icon-wrapper">
+                                            <input type="number" id="ride-food" step="0.01" min="0" value="0.00">
+                                        </div>
+                                    </div>
                                 </div>
-                            </div>
+                                <div class="form-group">
+                                    <label for="ride-notes">Observações</label>
+                                    <input type="text" id="ride-notes" placeholder="Ex: Muita demanda, rodei bastante">
+                                </div>
 
-                            <!-- Platform Ranking List -->
-                            <h3 class="section-title">Ranking de Rentabilidade</h3>
-                            <div class="ranking-container" id="platform-ranking-list">
-                                <!-- Platform items will be ordered dynamically -->
-                                <div class="ranking-item">
-                                    <div class="rank-pos">1</div>
-                                    <div class="rank-details">
-                                        <h5>Amazon Flex</h5>
-                                        <span>R$ 4,80 por pacote (líquido médio)</span>
+                                <div class="live-calc-card ride-calc">
+                                    <div class="calc-header">
+                                        <span><i class="bx bx-analyse animate-spin"></i> Estimativa</span>
+                                        <span class="badge-live">Tempo Real</span>
                                     </div>
-                                    <div class="rank-score text-emerald">
-                                        R$ 2.450,00
+                                    <div class="calc-grid">
+                                        <div class="calc-item">
+                                            <span class="calc-label">Custo Total</span>
+                                            <span class="calc-value text-red" id="live-ride-cost">R$ 0,00</span>
+                                        </div>
+                                        <div class="calc-item">
+                                            <span class="calc-label">Lucro Líquido</span>
+                                            <span class="calc-value text-emerald font-bold" id="live-ride-profit">R$ 0,00</span>
+                                        </div>
+                                        <div class="calc-item">
+                                            <span class="calc-label">Lucro/Hora</span>
+                                            <span class="calc-value text-blue" id="live-ride-per-hour">R$ 0,00</span>
+                                        </div>
+                                        <div class="calc-item">
+                                            <span class="calc-label">Lucro/KM</span>
+                                            <span class="calc-value text-purple" id="live-ride-per-km">R$ 0,00</span>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
 
-                            <!-- Fuel Efficiency Simulator (Etanol x Gasolina) -->
-                            <h3 class="section-title">Simulador de Combustível Inteligente</h3>
-                            <div class="fuel-simulator-card">
-                                <div class="fuel-sim-header">
-                                    <i class="bx bx-calculator"></i>
-                                    <h4>Calculadora Etanol x Gasolina</h4>
-                                </div>
-                                <p class="fuel-sim-desc">Insira os preços locais para saber qual combustível compensa mais para o consumo do seu veículo:</p>
-                                
-                                <div class="fuel-sim-inputs">
-                                    <div class="form-group sm">
-                                        <label for="sim-price-etanol">Preço Etanol</label>
-                                        <input type="number" id="sim-price-etanol" step="0.01" value="3.79">
-                                    </div>
-                                    <div class="form-group sm">
-                                        <label for="sim-price-gasolina">Preço Gasolina</label>
-                                        <input type="number" id="sim-price-gasolina" step="0.01" value="5.59">
-                                    </div>
-                                </div>
-                                
-                                <div class="fuel-sim-result-card" id="fuel-sim-result-box">
-                                    <span class="result-label">Recomendação</span>
-                                    <h4 class="result-title text-emerald" id="fuel-sim-recommendation">Use Etanol!</h4>
-                                    <p class="result-text" id="fuel-sim-details">O etanol representa 67.8% do preço da gasolina. Compensará mais até o valor de R$ 3,91.</p>
+                                <button type="submit" class="btn btn-primary btn-block btn-lg"><i class="bx bx-check-double"></i> Salvar Corrida</button>
+                            </form>
+
+                            <h3 class="section-title" style="margin-top: 24px;">Últimas Corridas</h3>
+                            <div class="recent-routes-list" id="recent-rides-list">
+                                <div class="empty-state">
+                                    <i class="bx bx-car"></i>
+                                    <p>Nenhuma corrida registrada ainda.</p>
                                 </div>
                             </div>
                         </section>
@@ -680,7 +740,15 @@ export const appMarkup = `<!-- Desktop Simulator Frame Wrapper -->
 
                             <!-- History Filters -->
                             <div class="filters-card">
-                                <div class="form-grid-three">
+                                <div class="form-grid-two">
+                                    <div class="form-group">
+                                        <label for="filter-type">Tipo</label>
+                                        <select id="filter-type">
+                                            <option value="all">Tudo</option>
+                                            <option value="delivery">Entregas</option>
+                                            <option value="ride">Corridas</option>
+                                        </select>
+                                    </div>
                                     <div class="form-group">
                                         <label for="filter-platform">Plataforma</label>
                                         <select id="filter-platform">
@@ -691,9 +759,16 @@ export const appMarkup = `<!-- Desktop Simulator Frame Wrapper -->
                                             <option value="Lalamove">Lalamove</option>
                                             <option value="Loggi">Loggi</option>
                                             <option value="Uber Flash">Uber Flash</option>
+                                            <option value="Uber">Uber</option>
+                                            <option value="99">99</option>
+                                            <option value="InDrive">InDrive</option>
+                                            <option value="Maxim">Maxim</option>
+                                            <option value="Porta a Porta">Porta a Porta</option>
                                             <option value="Outra">Outras</option>
                                         </select>
                                     </div>
+                                </div>
+                                <div class="form-grid-two">
                                     <div class="form-group">
                                         <label for="filter-month">Mês</label>
                                         <select id="filter-month">
@@ -752,13 +827,13 @@ export const appMarkup = `<!-- Desktop Simulator Frame Wrapper -->
                             </div>
                             <span>Nova Rota</span>
                         </a>
+                        <a href="#" class="nav-item" data-tab="tab-mobility">
+                            <i class="bx bx-taxi"></i>
+                            <span>Corridas</span>
+                        </a>
                         <a href="#" class="nav-item" data-tab="tab-vehicle">
                             <i class="bx bx-car"></i>
                             <span>Carro</span>
-                        </a>
-                        <a href="#" class="nav-item" data-tab="tab-statistics">
-                            <i class="bx bx-bar-chart-alt-2"></i>
-                            <span>Análise</span>
                         </a>
                         <a href="#" class="nav-item" data-tab="tab-goals">
                             <i class="bx bx-target-lock"></i>
@@ -812,6 +887,22 @@ export const appMarkup = `<!-- Desktop Simulator Frame Wrapper -->
                     <label for="goal-name">Nome da Meta</label>
                     <input type="text" id="goal-name" placeholder="Ex: Troca de Pneus / Prestação do Mês" required>
                 </div>
+                <div class="form-group">
+                    <label for="goal-category">Categoria</label>
+                    <select id="goal-category">
+                        <option value="prestacao">Prestação</option>
+                        <option value="pneus">Trocar Pneus</option>
+                        <option value="reserva">Guardar Dinheiro</option>
+                        <option value="carro">Comprar Carro</option>
+                        <option value="viagem">Viagem</option>
+                        <option value="emergencia">Emergência</option>
+                        <option value="manutencao">Manutenção</option>
+                        <option value="combustivel">Combustível</option>
+                        <option value="aluguel">Aluguel</option>
+                        <option value="investimento">Investimento</option>
+                        <option value="outro">Outro</option>
+                    </select>
+                </div>
                 <div class="form-grid-two">
                     <div class="form-group">
                         <label for="goal-target">Valor Objetivo (R$)</label>
@@ -855,6 +946,58 @@ export const appMarkup = `<!-- Desktop Simulator Frame Wrapper -->
                 <div class="modal-actions">
                     <button type="button" class="btn btn-glass" id="btn-cancel-deposit-modal">Cancelar</button>
                     <button type="submit" class="btn btn-primary">Adicionar Dinheiro</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: EDIT GOAL -->
+    <div class="custom-modal" id="modal-edit-goal">
+        <div class="modal-overlay"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Editar Meta</h3>
+                <button class="btn-close-modal" id="btn-close-edit-goal-modal"><i class="bx bx-x"></i></button>
+            </div>
+            <form id="form-edit-goal" class="custom-form">
+                <input type="hidden" id="edit-goal-id">
+                <div class="form-group">
+                    <label for="edit-goal-name">Nome da Meta</label>
+                    <input type="text" id="edit-goal-name" required>
+                </div>
+                <div class="form-group">
+                    <label for="edit-goal-category">Categoria</label>
+                    <select id="edit-goal-category">
+                        <option value="prestacao">Prestação</option>
+                        <option value="pneus">Trocar Pneus</option>
+                        <option value="reserva">Guardar Dinheiro</option>
+                        <option value="carro">Comprar Carro</option>
+                        <option value="viagem">Viagem</option>
+                        <option value="emergencia">Emergência</option>
+                        <option value="manutencao">Manutenção</option>
+                        <option value="combustivel">Combustível</option>
+                        <option value="aluguel">Aluguel</option>
+                        <option value="investimento">Investimento</option>
+                        <option value="outro">Outro</option>
+                    </select>
+                </div>
+                <div class="form-grid-two">
+                    <div class="form-group">
+                        <label for="edit-goal-target">Valor Objetivo (R$)</label>
+                        <input type="number" id="edit-goal-target" min="1" step="0.01" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="edit-goal-current">Saldo Atual (R$)</label>
+                        <input type="number" id="edit-goal-current" min="0" step="0.01">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="edit-goal-deadline">Data Limite</label>
+                    <input type="date" id="edit-goal-deadline" required>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-glass" id="btn-cancel-edit-goal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Salvar Alterações</button>
                 </div>
             </form>
         </div>
